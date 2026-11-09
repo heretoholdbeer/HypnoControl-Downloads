@@ -4,7 +4,11 @@ Hier werden nach manueller Prüfung die Windows-Versionen von HypnoControl berei
 
 ## Download
 
-**[GitHub Releases ansehen](https://github.com/heretoholdbeer/HypnoControl-Downloads/releases)**
+**[Launcher für Windows herunterladen (EXE, 32 KB)](https://github.com/heretoholdbeer/HypnoControl-Downloads/raw/refs/heads/main/downloads/HypnoControl-Launcher.exe)**
+
+[SHA-256-Prüfsumme](https://github.com/heretoholdbeer/HypnoControl-Downloads/blob/main/downloads/HypnoControl-Launcher.exe.sha256) · [GitHub Releases ansehen](https://github.com/heretoholdbeer/HypnoControl-Downloads/releases)
+
+**Hinweis:** Der Launcher ist bereits öffentlich verfügbar, der erste öffentliche App-Release aber noch nicht. Daher kann `UPDATE` aktuell noch keine HypnoControl-Version installieren. Der Launcher benötigt später keine GitHub-Anmeldung.
 
 Ein Release enthält folgende Dateien:
 
@@ -14,7 +18,7 @@ Ein Release enthält folgende Dateien:
 | `HypnoControl.exe` | Vollständige Windows-Anwendung |
 | `HypnoControl.exe.sha256` | SHA-256-Prüfsumme für die EXE |
 
-Wenn die Release-Seite noch leer ist, ist die öffentliche Veröffentlichung noch nicht abgeschlossen. Ein leeres Repository ist **kein** Zeichen dafür, dass der Launcher schon heruntergeladen werden kann.
+Wenn die Release-Seite noch leer ist, steht die Anwendung selbst noch nicht öffentlich bereit. Der Launcher-Download oben ist davon unabhängig.
 
 ## Launcher
 
