@@ -1,0 +1,47 @@
+name: Verify anonymous Windows launcher and downloadable app
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'downloads/**'
+      - '.github/workflows/verify-anonymous-windows-update.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate published binaries and checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($name in @('HypnoControl.exe','HypnoControl-Launcher.exe')){
+            $file=Join-Path 'downloads' $name
+            if(-not(Test-Path -LiteralPath $file -PathType Leaf)){throw ('Missing: '+$file)}
+            $checksum=((Get-Content -LiteralPath ($file+'.sha256') -Raw).Split(' ')[0]).Trim().ToLowerInvariant()
+            $actual=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if($checksum-ne$actual){throw ('SHA256 mismatch: '+$name)}
+            Write-Host ('VERIFIED: '+$name+' ('+(Get-Item $file).Length+' bytes)')
+          }
+          $manifest=Get-Content -LiteralPath 'downloads/current.json' -Raw|ConvertFrom-Json
+          $app=(Get-Item 'downloads/HypnoControl.exe')
+          if([string]$manifest.tag -notmatch '^v[0-9]+[.][0-9]+[.][0-9]+-alpha[.][0-9]+$' -or
+             [long]$manifest.size-ne[long]$app.Length -or
+             [string]$manifest.sha256 -ne (Get-FileHash $app.FullName -Algorithm SHA256).Hash.ToLowerInvariant()){
+            throw 'Published manifest does not match app EXE'
+          }
+      - name: Run launcher standalone logic tests
+        shell: pwsh
+        run: |
+          $p=Start-Process -FilePath (Resolve-Path 'downloads/HypnoControl-Launcher.exe') -ArgumentList '--self-test' -Wait -PassThru
+          if($p.ExitCode-ne0){throw ('Launcher self-test failed: '+$p.ExitCode)}
+          Write-Host 'PASS: launcher security and rollback unit tests'
+      - name: Verify LIVE anonymous update from public GitHub
+        shell: pwsh
+        run: |
+          $p=Start-Process -FilePath (Resolve-Path 'downloads/HypnoControl-Launcher.exe') -ArgumentList '--verify-update' -Wait -PassThru
+          if($p.ExitCode-ne0){throw ('Anonymous update/download/integrity test failed: '+$p.ExitCode)}
+          Write-Host 'PASS: launcher found, downloaded and installed latest app over HTTPS without credentials'
