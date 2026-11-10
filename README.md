@@ -1,36 +1,27 @@
 # HypnoControl – Windows-Downloads
 
-Hier werden nach manueller Prüfung die Windows-Versionen von HypnoControl bereitgestellt. Das Entwicklungsrepository und seine Git-Historie bleiben privat.
+Dieses öffentliche Download-Repository enthält ausschließlich geprüfte Windows-Binärdateien, einen Versionsindex und Prüfsummen. Die private Entwicklerhistorie wurde nicht übernommen.
 
-## Download
+## Direkt herunterladen
 
-**[Launcher für Windows herunterladen (EXE, 32 KB)](https://github.com/heretoholdbeer/HypnoControl-Downloads/raw/refs/heads/main/downloads/HypnoControl-Launcher.exe)**
+**[HypnoControl Launcher herunterladen](https://raw.githubusercontent.com/heretoholdbeer/HypnoControl-Downloads/main/downloads/HypnoControl-Launcher.exe)**
 
-[SHA-256-Prüfsumme](https://github.com/heretoholdbeer/HypnoControl-Downloads/blob/main/downloads/HypnoControl-Launcher.exe.sha256) · [GitHub Releases ansehen](https://github.com/heretoholdbeer/HypnoControl-Downloads/releases)
+Aktuelle Anwendung: **v0.24.0-alpha.325**  
+**[HypnoControl.exe herunterladen](https://raw.githubusercontent.com/heretoholdbeer/HypnoControl-Downloads/main/downloads/HypnoControl.exe)**
 
-**Hinweis:** Der Launcher ist bereits öffentlich verfügbar, der erste öffentliche App-Release aber noch nicht. Daher kann `UPDATE` aktuell noch keine HypnoControl-Version installieren. Der Launcher benötigt später keine GitHub-Anmeldung.
+[Launcher SHA-256](downloads/HypnoControl-Launcher.exe.sha256) · [App SHA-256](downloads/HypnoControl.exe.sha256) · [Versionsindex](downloads/current.json)
 
-Ein Release enthält folgende Dateien:
+## Starten und aktualisieren
 
-| Datei | Verwendung |
-| --- | --- |
-| `HypnoControl-Launcher.exe` | Startet den Update-Manager ohne GitHub-Anmeldung |
-| `HypnoControl.exe` | Vollständige Windows-Anwendung |
-| `HypnoControl.exe.sha256` | SHA-256-Prüfsumme für die EXE |
+1. Nur den `HypnoControl-Launcher.exe` herunterladen und auf dem Desktop speichern.
+2. Im Launcher `UPDATE` wählen. Der Launcher ruft den öffentlichen Versionsindex ab, lädt die EXE via HTTPS und verifiziert Größe und SHA-256.
+3. Sobald die Installation abgeschlossen ist, `APP STARTEN` verwenden. Vorige, vom Launcher installierte Versionen bleiben für ein Rollback erhalten.
 
-Wenn die Release-Seite noch leer ist, steht die Anwendung selbst noch nicht öffentlich bereit. Der Launcher-Download oben ist davon unabhängig.
+Es ist weder GitHub-Anmeldung noch GitHub CLI erforderlich. Der Launcher speichert die Anwendung und vorherige Versionen unter `%LOCALAPPDATA%\HypnoControl\UpdateManager\Versions`. Eigene Bilder, Videos, Sprachdateien und Konfigurationen werden nicht in den Downloadordner kopiert oder durch Updates gelöscht.
 
-## Launcher
+## Hinweise
 
-1. `HypnoControl-Launcher.exe` herunterladen und unter Windows starten.
-2. **UPDATE** lädt die neueste veröffentlichte Version per HTTPS herunter, prüft die von GitHub angegebene SHA-256-Prüfsumme und installiert sie im Benutzerprofil.
-3. **ALTE VERSION STARTEN** startet die unmittelbar vorherige, vom Launcher verwaltete Version, sofern verfügbar. **BEENDEN** schließt den Launcher.
-
-Der Launcher benötigt keine GitHub-Anmeldung und keine GitHub-CLI. Eigene Medien, Einstellungen und Benutzerdateien sind nicht Teil der Releases.
-
-## Wichtige Hinweise
-
-- **Alpha-Version / unsigniert:** Die EXE-Dateien sind nicht mit einem Windows-Code-Signing-Zertifikat signiert. Eine SmartScreen-Warnung ist möglich.
-- Der aktuelle Programmcontainer enthält eingebettete Skripte und Laufzeitressourcen. Die private Git-Historie wird nicht veröffentlicht, aber in der EXE enthaltene Skripte sind technisch extrahierbar.
-- Hardwarefunktionen sowie Live-Synchronisation mit externen Geräten sind nicht vollständig auf dem Zielsystem geprüft.
-- Ein Download ist erst dann freigegeben, wenn die manuelle private Build-, Datenschutz- und Release-Prüfung abgeschlossen wurde.
+- **Unsignierte Alpha:** Windows kann eine Sicherheits- oder SmartScreen-Warnung anzeigen. Die Prüfsummenprüfung ist kein Ersatz für eine gültige Herausgebersignatur.
+- In die EXE eingebettete PowerShell-Skripte und Laufzeitressourcen sind technisch extrahierbar. Die private Git-Historie ist nicht enthalten.
+- Die EXE und ihre Ressourcen wurden automatisiert auf zuvor definierte sensible Muster geprüft. Eine vollständige manuelle Sicherheitsgarantie folgt daraus nicht.
+- Physische Geräte und externe Audiohardware sind nicht auf jedem Zielsystem getestet.
