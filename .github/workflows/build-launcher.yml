@@ -32,16 +32,14 @@ jobs:
         run: |
           $p=Start-Process -FilePath (Resolve-Path downloads/HypnoControl-Launcher.exe) -ArgumentList '--self-test' -Wait -PassThru
           if($p.ExitCode -ne 0){throw "Self test failed: $($p.ExitCode)"}
-      - name: Refresh application to current manifest release
+      - name: Validate public app and update manifest
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $m=Get-Content downloads/current.json -Raw|ConvertFrom-Json
-          if([string]$m.url -notmatch '^https://github\.com/heretoholdbeer/HypnoControl/releases/download/') {throw 'Untrusted app download URL'}
-          Invoke-WebRequest -Uri $m.url -OutFile downloads/HypnoControl.exe -MaximumRedirection 8
+          if([string]$m.url -ne 'https://raw.githubusercontent.com/heretoholdbeer/HypnoControl-Downloads/main/downloads/HypnoControl.exe') { throw 'Manifest must use public anonymous download URL' }
           $appHash=(Get-FileHash downloads/HypnoControl.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          if($appHash -ne [string]$m.sha256 -or (Get-Item downloads/HypnoControl.exe).Length -ne [long]$m.size){throw 'Release asset mismatch'}
-          "$appHash  HypnoControl.exe" | Set-Content downloads/HypnoControl.exe.sha256
+          if($appHash -ne [string]$m.sha256 -or (Get-Item downloads/HypnoControl.exe).Length -ne [long]$m.size) { throw 'Published application and manifest mismatch' }
           $launcherHash=(Get-FileHash downloads/HypnoControl-Launcher.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$launcherHash  HypnoControl-Launcher.exe" | Set-Content downloads/HypnoControl-Launcher.exe.sha256
       - name: Test anonymous auto-update
