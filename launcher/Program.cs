@@ -41,41 +41,14 @@ namespace HypnoControlLauncher {
         var tag=Str(d,"tag");
         var n=Number(tag);
         if(n==null) throw new Exception("Versionsindex enthaelt keine gueltige Alpha-Version.");
+        if(!Str(d,"url").StartsWith("https://raw.githubusercontent.com/heretoholdbeer/HypnoControl-Downloads/main/downloads/",StringComparison.OrdinalIgnoreCase)) throw new Exception("Nicht oeffentlicher oder nicht vertrauenswuerdiger Download-Link.");
+        if(!Regex.IsMatch(Str(d,"sha256"),@"^[0-9a-fA-F]{64}$") || Long(d,"size")<=0) throw new Exception("Ungueltige Dateipruefsumme.");
         return new Release{Tag=tag,Number=n,Url=Str(d,"url"),Sha=Str(d,"sha256").ToLowerInvariant(),Size=Long(d,"size")};
       }
     }
-    static Release FindLatest() {
-      Exception apiFailure=null;
-      try {
-        using(var w=Client()) {
-          var arr=Json.DeserializeObject(w.DownloadString(Api)) as object[];
-          if(arr==null) throw new Exception("Release-Antwort ungueltig");
-          var list=new List<Release>();
-          foreach(var value in arr) {
-            var d=Obj(value);
-            if(d==null || Str(d,"draft")=="True") continue;
-            string tag=Str(d,"tag_name");
-            Version n=Number(tag);
-            if(n==null) continue;
-            var assets=d.ContainsKey("assets")?d["assets"] as object[]:null;
-            if(assets==null)continue;
-            foreach(var asset in assets) {
-              var a=Obj(asset);
-              if(Str(a,"name")!="HypnoControl.exe")continue;
-              string sha=Str(a,"digest").Replace("sha256:","").ToLowerInvariant();
-              string url=Str(a,"browser_download_url");
-              long size=Long(a,"size");
-              if(Regex.IsMatch(sha,@"^[0-9a-f]{64}$") && url.StartsWith("https://github.com/heretoholdbeer/HypnoControl/releases/download/",StringComparison.OrdinalIgnoreCase) && size>0)
-                list.Add(new Release{Tag=tag,Number=n,Url=url,Sha=sha,Size=size});
-            }
-          }
-          if(list.Count>0)return list.OrderByDescending(x=>x.Number).First();
-        }
-      } catch(Exception e) { apiFailure=e; }
-      try {return FromManifest();}catch(Exception e) {
-        throw new Exception("Weder GitHub-Releases noch der Versionsindex sind erreichbar. API: "+(apiFailure==null?"Keine geeignete Release":apiFailure.Message)+"; Index: "+e.Message);
-      }
-    }
+    // Anonymous users cannot access the private application repository.
+    // Only public download metadata and public verified binaries are trusted.
+    static Release FindLatest() { return FromManifest(); }
     static string SafePath(Release r) {
       if(!Regex.IsMatch(r.Tag,@"^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$"))throw new Exception("Ungueltiges Release-Tag");
       return Path.Combine(Versions,r.Tag,"HypnoControl.exe");
