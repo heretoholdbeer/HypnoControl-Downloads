@@ -43,5 +43,11 @@ jobs:
         shell: pwsh
         run: |
           $p=Start-Process -FilePath (Resolve-Path 'downloads/HypnoControl-Launcher.exe') -ArgumentList '--verify-update' -Wait -PassThru
-          if($p.ExitCode-ne0){throw ('Anonymous update/download/integrity test failed: '+$p.ExitCode)}
+          if($p.ExitCode-ne0){
+            $log=Join-Path $env:LOCALAPPDATA 'HypnoControl\UpdateManager\Updater.log'
+            if(Test-Path -LiteralPath $log){
+              Get-Content -LiteralPath $log -Tail 30 | ForEach-Object { Write-Host ('PUBLIC LAUNCHER DIAG: '+$_) }
+            }
+            throw ('Anonymous update/download/integrity test failed: '+$p.ExitCode)
+          }
           Write-Host 'PASS: launcher found, downloaded and installed latest app over HTTPS without credentials'
