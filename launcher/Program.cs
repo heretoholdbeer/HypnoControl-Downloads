@@ -134,7 +134,8 @@ namespace HypnoControlLauncher {
             string installed=Installed();
             string local=installed==null?"keine":Path.GetFileName(Path.GetDirectoryName(installed));
             if(install) {
-              if(local==r.Tag && Good(SafePath(r),r)) SetStatus("Installiert: "+r.Tag+" (aktuell) – APP STARTEN");
+              if(Number(local)!=null && Number(local).CompareTo(r.Number)>0) SetStatus("Installiert: "+local+" (neuer als oeffentlicher Stand "+r.Tag+") – kein Downgrade");
+              else if(local==r.Tag && Good(SafePath(r),r)) SetStatus("Installiert: "+r.Tag+" (aktuell) – APP STARTEN");
               else { SetStatus("Lade "+r.Tag+" und pruefe SHA-256 ..."); Install(r); SetStatus("Installiert: "+r.Tag+" – APP STARTEN"); }
             } else SetStatus("Installiert: "+local+" | Online: "+r.Tag+(local==r.Tag?" (aktuell)":" (Update verfuegbar)"));
           }catch(Exception e){SetStatus("Fehler: "+e.Message);}
