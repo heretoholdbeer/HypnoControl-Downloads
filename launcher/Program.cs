@@ -121,8 +121,8 @@ namespace HypnoControlLauncher {
       ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;
       if(args.Contains("--self-test")) {
         try {
-          if(Number("v0.24.0-alpha.340")<=Number("v0.24.0-alpha.325"))return 1;
-          if(Number("v0.24.0-alpha.999")<=Number("v0.24.0-alpha.340"))return 2;
+          if(Number("v0.24.0-alpha.340").CompareTo(Number("v0.24.0-alpha.325"))<=0)return 1;
+          if(Number("v0.24.0-alpha.999").CompareTo(Number("v0.24.0-alpha.340"))<=0)return 2;
           if(Number("../invalid")!=null)return 3;
           return 0;
         }catch{return 4;}
@@ -149,7 +149,7 @@ namespace HypnoControlLauncher {
         Controls.AddRange(new Control[]{title,status,update,start,check});
         update.Click+=(s,e)=>Run(true);check.Click+=(s,e)=>Run(false);
         start.Click+=(s,e)=>{try{Launch();}catch(Exception ex){MessageBox.Show(ex.Message);}};
-        Shown+=(s,e)=>Run(false);
+        Shown+=(s,e)=>Run(true);
       }
       void SetStatus(string s){if(!IsDisposed)BeginInvoke((Action)(()=>status.Text=s));}
       void Run(bool install) {
@@ -161,9 +161,8 @@ namespace HypnoControlLauncher {
             string installed=Installed();
             string local=installed==null?"keine":Path.GetFileName(Path.GetDirectoryName(installed));
             if(install) {
-              SetStatus("Lade "+r.Tag+" und pruefe SHA-256 ...");
-              Install(r);
-              SetStatus("Installiert: "+r.Tag+" – APP STARTEN");
+              if(local==r.Tag && Good(SafePath(r),r)) SetStatus("Installiert: "+r.Tag+" (aktuell) – APP STARTEN");
+              else { SetStatus("Lade "+r.Tag+" und pruefe SHA-256 ..."); Install(r); SetStatus("Installiert: "+r.Tag+" – APP STARTEN"); }
             } else SetStatus("Installiert: "+local+" | Online: "+r.Tag+(local==r.Tag?" (aktuell)":" (Update verfuegbar)"));
           }catch(Exception e){SetStatus("Fehler: "+e.Message);}
           finally{if(!IsDisposed)BeginInvoke((Action)(()=>{busy=false;update.Enabled=true;check.Enabled=true;}));}
