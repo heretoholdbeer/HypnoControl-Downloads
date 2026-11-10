@@ -1,0 +1,59 @@
+name: Sync public release to anonymous update channel
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-public-app
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Select latest public alpha release with application asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $releases=gh api 'repos/heretoholdbeer/HypnoControl-Downloads/releases?per_page=100' | ConvertFrom-Json
+          $candidates=@()
+          foreach($release in $releases) {
+            if($release.draft -or $release.tag_name -notmatch '^v([0-9]+)\.([0-9]+)\.([0-9]+)-alpha\.([0-9]+)$'){continue}
+            $asset=@($release.assets|Where-Object { $_.name -eq 'HypnoControl.exe' -and $_.size -gt 100000 })|Select-Object -First 1
+            if(-not $asset){continue}
+            $version=[version]::new([int]$Matches[1],[int]$Matches[2],[int]$Matches[3],[int]$Matches[4])
+            $candidates+= [pscustomobject]@{Tag=$release.tag_name;Version=$version;Asset=$asset}
+          }
+          if($candidates.Count -eq 0){throw 'No eligible public release with HypnoControl.exe'}
+          $selected=$candidates|Sort-Object Version -Descending|Select-Object -First 1
+          $existing=Get-Content downloads/current.json -Raw|ConvertFrom-Json
+          if([string]$existing.tag -match '^v([0-9]+)\.([0-9]+)\.([0-9]+)-alpha\.([0-9]+)$'){
+            $current=[version]::new([int]$Matches[1],[int]$Matches[2],[int]$Matches[3],[int]$Matches[4])
+            if($current -gt $selected.Version){throw 'Refusing downgrade of public channel'}
+          }
+          gh release download $selected.Tag --repo heretoholdbeer/HypnoControl-Downloads --pattern HypnoControl.exe --dir downloads --clobber
+          if($LASTEXITCODE -ne 0){throw 'Release download failed'}
+          $exe='downloads/HypnoControl.exe'
+          if((Get-Item $exe).Length -ne [long]$selected.Asset.size){throw 'Downloaded size mismatch'}
+          $sha=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if([string]$selected.Asset.digest -match '^sha256:([0-9a-f]{64})$' -and $sha -ne $Matches[1]){throw 'Digest mismatch'}
+          $manifest=[ordered]@{schema=1;tag=$selected.Tag;url='https://raw.githubusercontent.com/heretoholdbeer/HypnoControl-Downloads/main/downloads/HypnoControl.exe';sha256=$sha;size=(Get-Item $exe).Length}
+          $manifest|ConvertTo-Json|Set-Content downloads/current.json -Encoding UTF8
+          "$sha  HypnoControl.exe"|Set-Content downloads/HypnoControl.exe.sha256 -Encoding ASCII
+      - name: Publish synchronized channel
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/HypnoControl.exe downloads/HypnoControl.exe.sha256 downloads/current.json
+          if(git diff --cached --quiet){Write-Host 'Already up to date';exit 0}
+          git commit -m "release: synchronize newest public application and version manifest"
+          git push origin HEAD:main
