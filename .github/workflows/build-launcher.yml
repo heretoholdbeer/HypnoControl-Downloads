@@ -1,0 +1,61 @@
+name: Build and publish HypnoControl Launcher v2
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'launcher/**'
+      - '.github/workflows/build-launcher.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-launcher
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Compile Windows launcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) { throw 'Framework C# compiler missing' }
+          & $csc /nologo /optimize+ /target:winexe /out:downloads/HypnoControl-Launcher.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /r:System.Core.dll launcher/Program.cs
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation failed' }
+      - name: Test launcher version ordering
+        shell: pwsh
+        run: |
+          $p=Start-Process -FilePath (Resolve-Path downloads/HypnoControl-Launcher.exe) -ArgumentList '--self-test' -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "Self test failed: $($p.ExitCode)"}
+      - name: Refresh application to current manifest release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $m=Get-Content downloads/current.json -Raw|ConvertFrom-Json
+          if([string]$m.url -notmatch '^https://github\.com/heretoholdbeer/HypnoControl/releases/download/') {throw 'Untrusted app download URL'}
+          Invoke-WebRequest -Uri $m.url -OutFile downloads/HypnoControl.exe -MaximumRedirection 8
+          $appHash=(Get-FileHash downloads/HypnoControl.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($appHash -ne [string]$m.sha256 -or (Get-Item downloads/HypnoControl.exe).Length -ne [long]$m.size){throw 'Release asset mismatch'}
+          "$appHash  HypnoControl.exe" | Set-Content downloads/HypnoControl.exe.sha256
+          $launcherHash=(Get-FileHash downloads/HypnoControl-Launcher.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$launcherHash  HypnoControl-Launcher.exe" | Set-Content downloads/HypnoControl-Launcher.exe.sha256
+      - name: Test anonymous auto-update
+        shell: pwsh
+        run: |
+          $p=Start-Process -FilePath (Resolve-Path downloads/HypnoControl-Launcher.exe) -ArgumentList '--verify-update' -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "Anonymous release install failed: $($p.ExitCode)"}
+      - name: Publish tested EXEs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/HypnoControl-Launcher.exe downloads/HypnoControl-Launcher.exe.sha256 downloads/HypnoControl.exe downloads/HypnoControl.exe.sha256
+          if (git diff --cached --quiet) { Write-Host 'No binary changes'; exit 0 }
+          git commit -m "build: publish tested launcher v2 and latest application"
+          git push origin HEAD:main
