@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "tag": "v0.24.0-alpha.325",
-  "url": "https://raw.githubusercontent.com/heretoholdbeer/HypnoControl-Downloads/main/downloads/HypnoControl.exe",
-  "sha256": "bb53a59cb8b24d960576ae4c1ec968bbc4e5de3608aa16a9535ae9f8f87d7867",
-  "size": 859136
+  "tag": "v0.24.0-alpha.340",
+  "url": "https://github.com/heretoholdbeer/HypnoControl/releases/download/v0.24.0-alpha.340/HypnoControl.exe",
+  "sha256": "910c5e67508f11614cd94a1a4099a45c3860537839a854184118c12a05742520",
+  "size": 864768
 }
