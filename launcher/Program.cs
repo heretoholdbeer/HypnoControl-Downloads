@@ -1,0 +1,174 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Web.Script.Serialization;
+using System.Windows.Forms;
+
+namespace HypnoControlLauncher {
+  static class Program {
+    const string Api = "https://api.github.com/repos/heretoholdbeer/HypnoControl/releases?per_page=100";
+    const string Manifest = "https://raw.githubusercontent.com/heretoholdbeer/HypnoControl-Downloads/main/downloads/current.json";
+    static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"HypnoControl","UpdateManager");
+    static readonly string Versions = Path.Combine(Root,"Versions");
+    static readonly string CurrentFile = Path.Combine(Root,"current.txt");
+    static JavaScriptSerializer Json = new JavaScriptSerializer();
+    class Release { public string Tag, Url, Sha; public long Size; public Version Number; }
+    static Dictionary<string,object> Obj(object x) { return x as Dictionary<string,object>; }
+    static string Str(Dictionary<string,object> d,string k) { return d != null && d.ContainsKey(k) && d[k]!=null ? Convert.ToString(d[k]) : ""; }
+    static long Long(Dictionary<string,object> d,string k) { long n; return long.TryParse(Str(d,k),out n)?n:0; }
+    static Version Number(string tag) {
+      var m=Regex.Match(tag??"",@"^v(\d+)\.(\d+)\.(\d+)-alpha\.(\d+)$",RegexOptions.IgnoreCase);
+      return m.Success?new Version(int.Parse(m.Groups[1].Value),int.Parse(m.Groups[2].Value),int.Parse(m.Groups[3].Value),int.Parse(m.Groups[4].Value)):null;
+    }
+    static WebClient Client() {
+      var w=new WebClient();
+      w.Headers[HttpRequestHeader.UserAgent]="HypnoControl-Launcher/2.0";
+      w.Headers[HttpRequestHeader.Accept]="application/vnd.github+json";
+      w.Encoding=System.Text.Encoding.UTF8;
+      return w;
+    }
+    static Release FromManifest() {
+      using(var w=Client()) {
+        var d=Obj(Json.DeserializeObject(w.DownloadString(Manifest)));
+        var tag=Str(d,"tag");
+        var n=Number(tag);
+        if(n==null) throw new Exception("Versionsindex enthaelt keine gueltige Alpha-Version.");
+        return new Release{Tag=tag,Number=n,Url=Str(d,"url"),Sha=Str(d,"sha256").ToLowerInvariant(),Size=Long(d,"size")};
+      }
+    }
+    static Release FindLatest() {
+      Exception apiFailure=null;
+      try {
+        using(var w=Client()) {
+          var arr=Json.DeserializeObject(w.DownloadString(Api)) as object[];
+          if(arr==null) throw new Exception("Release-Antwort ungueltig");
+          var list=new List<Release>();
+          foreach(var value in arr) {
+            var d=Obj(value);
+            if(d==null || Str(d,"draft")=="True") continue;
+            string tag=Str(d,"tag_name");
+            Version n=Number(tag);
+            if(n==null) continue;
+            var assets=d.ContainsKey("assets")?d["assets"] as object[]:null;
+            if(assets==null)continue;
+            foreach(var asset in assets) {
+              var a=Obj(asset);
+              if(Str(a,"name")!="HypnoControl.exe")continue;
+              string sha=Str(a,"digest").Replace("sha256:","").ToLowerInvariant();
+              string url=Str(a,"browser_download_url");
+              long size=Long(a,"size");
+              if(Regex.IsMatch(sha,@"^[0-9a-f]{64}$") && url.StartsWith("https://github.com/heretoholdbeer/HypnoControl/releases/download/",StringComparison.OrdinalIgnoreCase) && size>0)
+                list.Add(new Release{Tag=tag,Number=n,Url=url,Sha=sha,Size=size});
+            }
+          }
+          if(list.Count>0)return list.OrderByDescending(x=>x.Number).First();
+        }
+      } catch(Exception e) { apiFailure=e; }
+      try {return FromManifest();}catch(Exception e) {
+        throw new Exception("Weder GitHub-Releases noch der Versionsindex sind erreichbar. API: "+(apiFailure==null?"Keine geeignete Release":apiFailure.Message)+"; Index: "+e.Message);
+      }
+    }
+    static string SafePath(Release r) {
+      if(!Regex.IsMatch(r.Tag,@"^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$"))throw new Exception("Ungueltiges Release-Tag");
+      return Path.Combine(Versions,r.Tag,"HypnoControl.exe");
+    }
+    static string Hash(string path) {
+      using(var f=File.OpenRead(path))using(var s=SHA256.Create())
+        return BitConverter.ToString(s.ComputeHash(f)).Replace("-","").ToLowerInvariant();
+    }
+    static bool Good(string path, Release r) { return File.Exists(path) && new FileInfo(path).Length==r.Size && Hash(path)==r.Sha; }
+    static string Installed() {
+      if(!File.Exists(CurrentFile))return null;
+      var tag=File.ReadAllText(CurrentFile).Trim();
+      if(Number(tag)==null)return null;
+      string file=Path.Combine(Versions,tag,"HypnoControl.exe");
+      return File.Exists(file)?file:null;
+    }
+    static void Install(Release r) {
+      Directory.CreateDirectory(Versions);
+      string file=SafePath(r);
+      if(!Good(file,r)) {
+        string dir=Path.GetDirectoryName(file);
+        Directory.CreateDirectory(dir);
+        string tmp=Path.Combine(dir,"download-"+Guid.NewGuid().ToString("N")+".tmp");
+        try {
+          using(var w=Client()) w.DownloadFile(r.Url,tmp);
+          if(!Good(tmp,r))throw new Exception("Download-Pruefsumme oder Dateigroesse stimmt nicht. Keine Installation erfolgt.");
+          if(File.Exists(file))File.Delete(file);
+          File.Move(tmp,file);
+        } finally { if(File.Exists(tmp))File.Delete(tmp); }
+      }
+      string marker=CurrentFile+".tmp";
+      File.WriteAllText(marker,r.Tag);
+      if(File.Exists(CurrentFile))File.Delete(CurrentFile);
+      File.Move(marker,CurrentFile);
+      // Keep all previously installed versions for manual rollback; never touch user settings.
+    }
+    static void Launch() {
+      string exe=Installed();
+      if(exe==null)throw new Exception("Noch keine Anwendung installiert. Zuerst UPDATE auswaehlen.");
+      Process.Start(new ProcessStartInfo(exe){WorkingDirectory=Path.GetDirectoryName(exe),UseShellExecute=true});
+    }
+    [STAThread] static int Main(string[] args) {
+      ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;
+      if(args.Contains("--self-test")) {
+        try {
+          if(Number("v0.24.0-alpha.340")<=Number("v0.24.0-alpha.325"))return 1;
+          if(Number("v0.24.0-alpha.999")<=Number("v0.24.0-alpha.340"))return 2;
+          if(Number("../invalid")!=null)return 3;
+          return 0;
+        }catch{return 4;}
+      }
+      if(args.Contains("--verify-update")) {
+        try {var r=FindLatest();Install(r);return Good(SafePath(r),r)?0:1;}catch(Exception e){Console.Error.WriteLine(e);return 2;}
+      }
+      Application.EnableVisualStyles();
+      Application.SetCompatibleTextRenderingDefault(false);
+      Application.Run(new LauncherForm());
+      return 0;
+    }
+    class LauncherForm:Form {
+      Label status=new Label();Button update=new Button(),start=new Button(),check=new Button();
+      bool busy;
+      public LauncherForm() {
+        Text="HypnoControl Launcher 2.0";Width=510;Height=255;StartPosition=FormStartPosition.CenterScreen;
+        BackColor=Color.FromArgb(22,27,37);ForeColor=Color.White;Font=new Font("Segoe UI",10);
+        var title=new Label{Text="HYPNOCONTROL",Font=new Font("Segoe UI",18,FontStyle.Bold),Left=24,Top=18,Width=440,Height=43};
+        status.SetBounds(24,70,450,55);status.Text=Installed()==null?"Noch keine Version installiert.":"Installiert: "+Path.GetFileName(Path.GetDirectoryName(Installed()));
+        update.Text="UPDATE / INSTALLIEREN";update.SetBounds(24,135,215,40);
+        start.Text="APP STARTEN";start.SetBounds(252,135,215,40);
+        check.Text="Auf neue Version pruefen";check.SetBounds(24,182,443,25);
+        Controls.AddRange(new Control[]{title,status,update,start,check});
+        update.Click+=(s,e)=>Run(true);check.Click+=(s,e)=>Run(false);
+        start.Click+=(s,e)=>{try{Launch();}catch(Exception ex){MessageBox.Show(ex.Message);}};
+        Shown+=(s,e)=>Run(false);
+      }
+      void SetStatus(string s){if(!IsDisposed)BeginInvoke((Action)(()=>status.Text=s));}
+      void Run(bool install) {
+        if(busy)return;busy=true;update.Enabled=false;check.Enabled=false;
+        Task.Run(()=>{
+          try {
+            SetStatus("GitHub-Releases werden geprueft ...");
+            var r=FindLatest();
+            string installed=Installed();
+            string local=installed==null?"keine":Path.GetFileName(Path.GetDirectoryName(installed));
+            if(install) {
+              SetStatus("Lade "+r.Tag+" und pruefe SHA-256 ...");
+              Install(r);
+              SetStatus("Installiert: "+r.Tag+" – APP STARTEN");
+            } else SetStatus("Installiert: "+local+" | Online: "+r.Tag+(local==r.Tag?" (aktuell)":" (Update verfuegbar)"));
+          }catch(Exception e){SetStatus("Fehler: "+e.Message);}
+          finally{if(!IsDisposed)BeginInvoke((Action)(()=>{busy=false;update.Enabled=true;check.Enabled=true;}));}
+        });
+      }
+    }
+  }
+}
